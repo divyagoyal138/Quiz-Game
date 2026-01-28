@@ -1,0 +1,236 @@
+@model quiz_game_mvc.Models.QuizViewModel
+
+@{
+    ViewData["Title"] = "Quiz";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3 class="mb-0">Welcome, @Model.Username</h3>
+        <div class="text-muted">
+            Your highest score: <strong>@Model.YourHighScore</strong>
+            @if (Model.GlobalHighScore.HasValue)
+            {
+                <span class="ms-3">
+                    Highest score: <strong>@Model.GlobalHighScore.Value.Score</strong> (@Model.GlobalHighScore.Value.Username)
+                </span>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title mb-3">Game settings</h5>
+        <form asp-action="Start" method="post" class="row row-cols-1 row-cols-md-3 g-3 align-items-end">
+            <div class="col">
+                <label class="form-label d-block">Difficulty</label>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="Difficulty" value="Easy"
+                           @(Model.Difficulty == "Easy" ? "checked" : "") />
+                    <label class="form-check-label">Easy</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="Difficulty" value="Hard"
+                           @(Model.Difficulty == "Hard" ? "checked" : "") />
+                    <label class="form-check-label">Hard</label>
+                </div>
+            </div>
+            <input type="hidden" name="Seed" value="@Model.Seed" />
+            <div class="col-auto">
+                <button type="submit" class="btn btn-success">Start game</button>
+            </div>
+        </form>
+        @if (Model.IsStarted)
+        {
+            <p class="mt-2 text-muted">
+                Time limit: @Model.TimerSeconds seconds (@Model.Difficulty mode)
+            </p>
+        }
+    </div>
+</div>
+
+@if (Model.IsStarted)
+{
+    <form asp-action="Index" method="post" id="quizForm">
+        <input type="hidden" asp-for="Difficulty" />
+        <input type="hidden" asp-for="Seed" />
+        <input type="hidden" asp-for="IsStarted" />
+        <input type="hidden" asp-for="TimerSeconds" />
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="text-muted">
+                Question <strong><span id="qIndex">1</span></strong> / <strong>@Model.Questions.Count</strong>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="text-danger fw-semibold">
+                    Time left: <span id="timer">@Model.TimerSeconds</span>s
+                </div>
+                <div class="btn-group" role="group" aria-label="Question navigation">
+                    <button type="button" class="btn btn-outline-secondary" id="jumpFirstBtn">First</button>
+                    <button type="button" class="btn btn-outline-secondary" id="jumpLastBtn">Last</button>
+                </div>
+            </div>
+        </div>
+
+        @for (int i = 0; i < Model.Questions.Count; i++)
+        {
+            var q = Model.Questions[i];
+            <div class="card mb-3 quiz-question" data-qindex="@i" style="display:none;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h5 class="card-title mb-2">Q@(i + 1). @q.Text</h5>
+                        @if (Model.LastScore.HasValue)
+                        {
+                            if (Model.LastCorrectness.Count > i && Model.LastCorrectness[i])
+                            {
+                                <span class="badge bg-success">Correct</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">Wrong</span>
+                            }
+                        }
+                    </div>
+
+                    @for (int o = 0; o < q.Options.Length; o++)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input"
+                                   type="radio"
+                                   name="Answers[@i]"
+                                   value="@o"
+                                   @(Model.Answers.Count > i && Model.Answers[i].HasValue && Model.Answers[i]!.Value == o ? "checked" : "") />
+                            <label class="form-check-label">@q.Options[o]</label>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="d-flex gap-2 mt-2">
+            <div class="btn-group" role="group" aria-label="Prev/Next navigation">
+                <button type="button" class="btn btn-outline-secondary" id="prevBtn">Prev</button>
+                <button type="button" class="btn btn-outline-secondary" id="nextBtn">Next</button>
+            </div>
+            <button type="submit" class="btn btn-primary">Submit Quiz</button>
+        </div>
+    </form>
+}
+else
+{
+    <p class="text-muted">
+        Choose a difficulty and click <strong>Start game</strong> to begin.
+    </p>
+}
+
+@if (Model.LastScore.HasValue)
+{
+    <div class="alert alert-success mt-4">
+        <strong>Score:</strong> @Model.LastScore / @Model.Questions.Count
+        <div class="text-muted">Saved to leaderboard.</div>
+    </div>
+}
+
+<h4 class="mt-4">Leaderboard (Top 10)</h4>
+<table class="table table-striped table-bordered">
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Highest Score</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model.TopScores)
+        {
+            <tr>
+                <td>@item.Username</td>
+                <td>@item.Score</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <h5 class="card-title">Feedback</h5>
+        <div class="text-muted mb-2">Optional: share any feedback about the quiz.</div>
+
+        <form asp-action="Feedback" method="post">
+            <input type="hidden" asp-for="Difficulty" />
+            <input type="hidden" asp-for="Seed" />
+            <input type="hidden" asp-for="IsStarted" />
+            <textarea class="form-control" name="Feedback" rows="3" placeholder="Tell us what you think (optional)">@Model.Feedback</textarea>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+                <button type="submit" class="btn btn-outline-primary">Submit Feedback</button>
+                @if (Model.FeedbackSaved)
+                {
+                    <span class="text-success">Feedback submitted.</span>
+                }
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var cards = Array.prototype.slice.call(document.querySelectorAll('.quiz-question'));
+            if (!cards.length) return;
+
+            var qIndexEl = document.getElementById('qIndex');
+            var prevBtn = document.getElementById('prevBtn');
+            var nextBtn = document.getElementById('nextBtn');
+            var jumpFirstBtn = document.getElementById('jumpFirstBtn');
+            var jumpLastBtn = document.getElementById('jumpLastBtn');
+            var timerEl = document.getElementById('timer');
+            var form = document.getElementById('quizForm');
+
+            var current = 0;
+
+            function show(idx) {
+                if (idx < 0) idx = 0;
+                if (idx > cards.length - 1) idx = cards.length - 1;
+                current = idx;
+
+                for (var i = 0; i < cards.length; i++) {
+                    cards[i].style.display = (i === current) ? '' : 'none';
+                }
+
+                if (qIndexEl) qIndexEl.innerText = String(current + 1);
+                if (prevBtn) prevBtn.disabled = current === 0;
+                if (nextBtn) nextBtn.disabled = current === cards.length - 1;
+            }
+
+            if (prevBtn) prevBtn.addEventListener('click', function () { show(current - 1); });
+            if (nextBtn) nextBtn.addEventListener('click', function () { show(current + 1); });
+            if (jumpFirstBtn) jumpFirstBtn.addEventListener('click', function () { show(0); });
+            if (jumpLastBtn) jumpLastBtn.addEventListener('click', function () { show(cards.length - 1); });
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'ArrowLeft') show(current - 1);
+                if (e.key === 'ArrowRight') show(current + 1);
+            });
+
+            show(0);
+
+            // Countdown timer: auto-submit when time is up
+            var quizIsActive = @((Model.IsStarted && !Model.LastScore.HasValue).ToString().ToLower());
+            var remaining = @Model.TimerSeconds;
+
+            if (quizIsActive && timerEl && form) {
+                function tick() {
+                    if (remaining <= 0) {
+                        form.submit();
+                        return;
+                    }
+                    timerEl.innerText = remaining.toString();
+                    remaining--;
+                    setTimeout(tick, 1000);
+                }
+                tick();
+            }
+        })();
+    </script>
+}
+
